@@ -4,6 +4,8 @@
 
 **a. Initial design**
 
+- Identify 3 core actions a user should be able to perform.
+    - Add a pet, schedule a feeding, view today's tasks
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
