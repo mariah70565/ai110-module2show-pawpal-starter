@@ -12,12 +12,12 @@ dog = Pet(name="Mochi", species="dog")
 cat = Pet(name="Whiskers", species="cat")
 
 # adding tasks for the dog
-dog.add_task(Task(name="Morning walk", task_type="walk", duration_minutes=30, priority="high"))
-dog.add_task(Task(name="Feed", task_type="feeding", duration_minutes=10, priority="high"))
+dog.add_task(Task(name="Morning walk", duration_minutes=30, priority="high"))
+dog.add_task(Task(name="Feed", duration_minutes=10, priority="high"))
 
 # adding tasks for the cat
-cat.add_task(Task(name="Playtime", task_type="play", duration_minutes=20, priority="medium"))
-cat.add_task(Task(name="Vet visit", task_type="appointment", duration_minutes=60, priority="high", scheduled_time=datetime.datetime.combine(today, datetime.time(10, 0)))) #vet visit for 10am
+cat.add_task(Task(name="Playtime", duration_minutes=20, priority="medium"))
+cat.add_task(Task(name="Vet visit", duration_minutes=60, priority="high", scheduled_time=datetime.datetime.combine(today, datetime.time(10, 0)))) #vet visit for 10am
 
 # adding pets to the owner
 owner.add_pet(dog)

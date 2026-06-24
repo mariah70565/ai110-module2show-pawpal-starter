@@ -9,7 +9,6 @@ import uuid
 @dataclass
 class Task:
 	name: str
-	task_type: str
 	duration_minutes: int
 	priority: str = "medium"
 	frequency: str = "daily"
