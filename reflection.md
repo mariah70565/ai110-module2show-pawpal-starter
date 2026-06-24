@@ -7,12 +7,16 @@
 - Identify 3 core actions a user should be able to perform.
     - Add a pet, schedule a feeding, view today's tasks
 - Briefly describe your initial UML design.
+    - I created 4 objects, scheduler, owner, pet, and task. The scheduler is assigned to an owner, which holds a list of pets, where each pet holds a list of tasks. This allows for an owner to view tasks for all of their pets if they have more than 1. I also added various functions that provide the ability to add or remove task, generate the schedule, receive an explanation for the schedule, add or remove a pet, and reschedule a task.
 - What classes did you include, and what responsibilities did you assign to each?
+    - the classes I included were Scheduler, Owner, Pet, and Task. Scheduler has the ability to add or remove a task to the schedule, generate the schedule, and explain how the schedule was created. Owner has the ability to add or remove a pet to track its tasks. Pet has the ability to add a task. Task has the ability to reschedule a task.
 
 **b. Design changes**
 
 - Did your design change during implementation?
+    - yes
 - If yes, describe at least one change and why you made it.
+    - when it came to removing a task, I was originally removing by the task object, rather than its name. But then I realized removing by name wouldn't work either, in the case where a pet may have multiple feedings, then how do we identify which feeding task to remove? I change the task object to have a unique id, such that it can be referenced for removal, instead of by its object or by its name.
 
 ---
 
