@@ -12,12 +12,18 @@ class Task:
 	task_type: str
 	duration_minutes: int
 	priority: str = "medium"
+	frequency: str = "daily"
+	is_complete: bool = False
 	scheduled_time: Optional[datetime.datetime] = None
 	id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
-	def reschedule(self, new_time: datetime.datetime) -> None:
-		"""Reschedule the task to a new time."""
+	def reschedule(self, new_time: Optional[datetime.datetime]) -> None:
+		"""Reschedule task to `new_time`; pass None to clear it."""
 		self.scheduled_time = new_time
+
+	def mark_complete(self) -> None:
+		"""Mark the task as complete."""
+		self.is_complete = True
 
 
 @dataclass
@@ -44,7 +50,8 @@ class Owner:
 	name: str
 	pets: List[Pet] = field(default_factory=list)
 	preferences: List[str] = field(default_factory=list)
-	available_minutes_per_day: Optional[int] = None
+	day_start: datetime.time = field(default_factory=lambda: datetime.time(8, 0))
+	day_end: datetime.time = field(default_factory=lambda: datetime.time(20, 0))
 
 	def add_pet(self, pet: Pet) -> None:
 		"""Add a pet to the owner's list of pets."""
@@ -56,6 +63,13 @@ class Owner:
 		self.pets = [p for p in self.pets if p.name != pet_name]
 		if len(self.pets) == original_count:
 			raise ValueError(f"Pet not found: {pet_name}")
+
+	def set_day_window(self, start: datetime.time, end: datetime.time) -> None:
+		"""Set the owner's daily scheduling window; raises on invalid bounds."""
+		if start >= end:
+			raise ValueError("day_start must be before day_end")
+		self.day_start = start
+		self.day_end = end
 
 
 class Scheduler:
@@ -93,33 +107,79 @@ class Scheduler:
 		return all_tasks
 
 	def generate_schedule(self) -> List[Task]:
-		"""Return a simple ordered list of tasks for the day.
-
-		Current behavior: flatten tasks and sort by priority (high, medium, low).
-		"""
+		"""Generate today's schedule by packing tasks into the owner's window."""
+		# Build schedule within owner's daily window using a greedy algorithm.
 		priority_order = {"high": 0, "medium": 1, "low": 2}
-		tasks = self._collect_all_tasks()
-		tasks.sort(key=lambda t: (priority_order.get(t.priority.lower(), 1), t.duration_minutes))  # primary sort by priority, secondary sort by duration
-		return tasks
+
+		today = datetime.date.today()
+		window_start = datetime.datetime.combine(today, self.owner.day_start)
+		window_end = datetime.datetime.combine(today, self.owner.day_end)
+
+		tasks = [t for t in self._collect_all_tasks() if not t.is_complete]
+
+		# Separate fixed-time tasks and flexible tasks
+		fixed = [t for t in tasks if t.scheduled_time is not None]
+		flexible = [t for t in tasks if t.scheduled_time is None]
+
+		# Normalize fixed times to today's date if they are time-only
+		fixed = sorted(fixed, key=lambda t: t.scheduled_time)
+
+		# Sort flexible by priority then duration
+		flexible.sort(key=lambda t: (priority_order.get(t.priority.lower(), 1), t.duration_minutes))
+
+		scheduled: List[Task] = []
+		pointer = window_start
+
+		# Helper to try to schedule flexible tasks until a limit
+		def fill_until(limit: datetime.datetime):
+			"""Fill flexible tasks until `limit` by scheduling them at `pointer`."""
+			nonlocal pointer
+			i = 0
+			while i < len(flexible):
+				task = flexible[i]
+				end_time = pointer + datetime.timedelta(minutes=task.duration_minutes)
+				if end_time <= limit and end_time <= window_end:
+					task.scheduled_time = pointer
+					scheduled.append(task)
+					pointer = end_time
+					flexible.pop(i)
+				else:
+					i += 1
+
+		# Fill before each fixed task
+		for f in fixed:
+			# if fixed time is outside window, skip or adjust
+			f_start = f.scheduled_time
+			f_end = f_start + datetime.timedelta(minutes=f.duration_minutes)
+			if f_end <= window_start or f_start >= window_end:
+				# fixed task outside today's window - keep as-is but don't schedule inside window
+				continue
+			# schedule flexible tasks before this fixed task
+			fill_until(f_start)
+			# ensure pointer moves to end of fixed if it's later
+			if pointer < f_end:
+				pointer = f_end
+			scheduled.append(f)
+
+		# Fill remaining time after last fixed
+		fill_until(window_end)
+
+		# Return scheduled tasks sorted by time
+		scheduled.sort(key=lambda t: t.scheduled_time or datetime.datetime.max)
+		return scheduled
 
 	def explain_schedule(self) -> str:
-		"""Return a human-readable explanation of the generated schedule."""
+		"""Return the schedule formatted like `main.py`'s print output."""
+		# build task->pet mapping for quick lookup
+		task_to_pet = {}
+		for pet in self.owner.pets:
+			for task in pet.tasks:
+				task_to_pet[task.id] = pet.name
+
 		tasks = self.generate_schedule()
-		reasons = [f"{t.name}: priority={t.priority}, duration={t.duration_minutes}m" for t in tasks]
-		return "; ".join(reasons)
-
-
-if __name__ == "__main__":
-	# quick demo
-	owner = Owner(name="Jordan", available_minutes_per_day=180)
-	dog = Pet(name="Mochi", species="dog")
-	dog.add_task(Task(name="Morning walk", task_type="walk", duration_minutes=30, priority="high"))
-	dog.add_task(Task(name="Feed", task_type="feeding", duration_minutes=10, priority="high"))
-	owner.add_pet(dog)
-
-	sched = Scheduler(owner)
-	plan = sched.generate_schedule()
-	print("Daily plan:")
-	for t in plan:
-		print(f" - {t.name} ({t.duration_minutes}m) [{t.priority}]")
-
+		lines = []
+		for t in tasks:
+			ts = t.scheduled_time.strftime("%I:%M %p") if t.scheduled_time else "unscheduled"
+			pet_name = task_to_pet.get(t.id, "")
+			lines.append(f" - {ts} - {t.name.title()} for {pet_name} ({t.duration_minutes}m) [{t.priority} priority]")
+		return "Today's Schedule:\n" + "\n".join(lines)
